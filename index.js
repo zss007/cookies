@@ -28,6 +28,7 @@ var fieldContentRegExp = /^[\u0009\u0020-\u007e\u0080-\u00ff]+$/;
 
 var sameSiteRegExp = /^(?:lax|strict)$/i
 
+// 构造函数
 function Cookies(request, response, options) {
   if (!(this instanceof Cookies)) return new Cookies(request, response, options)
 
@@ -51,11 +52,13 @@ function Cookies(request, response, options) {
   }
 }
 
+// 获取 Cookie 中相应 key 的 value
 Cookies.prototype.get = function(name, opts) {
   var sigName = name + ".sig"
     , header, match, value, remote, data, index
     , signed = opts && opts.signed !== undefined ? opts.signed : !!this.keys
 
+  // 请求头中的 Cookie
   header = this.request.headers["cookie"]
   if (!header) return
 
@@ -65,21 +68,27 @@ Cookies.prototype.get = function(name, opts) {
   value = match[1]
   if (!opts || !signed) return value
 
+  // 如果有加密的
   remote = this.get(sigName)
   if (!remote) return
 
   data = name + "=" + value
+  // 加密需要 keys
   if (!this.keys) throw new Error('.keys required for signed cookies');
+  // this.keys => new Keygrip()，验证加密是否被篡改
   index = this.keys.index(data, remote)
 
   if (index < 0) {
+    // 如果没有匹配到，设置 xxx.sig 为 null
     this.set(sigName, null, {path: "/", signed: false })
   } else {
+    // 如果匹配到，则设置 xxx.sig 值，并返回 value
     index && this.set(sigName, this.keys.sign(data), { signed: false })
     return value
   }
 };
 
+// 设置 Cookie 中相应 key 的值
 Cookies.prototype.set = function(name, value, opts) {
   var res = this.response
     , req = this.request
@@ -102,8 +111,10 @@ Cookies.prototype.set = function(name, value, opts) {
     cookie.secure = opts.secureProxy
   }
 
+  // 添加到 headers
   pushCookie(headers, cookie)
 
+  // 添加 xxx.sig 到 headers
   if (opts && signed) {
     if (!this.keys) throw new Error('.keys required for signed cookies');
     cookie.value = this.keys.sign(cookie.toString())
@@ -112,10 +123,12 @@ Cookies.prototype.set = function(name, value, opts) {
   }
 
   var setHeader = res.set ? http.OutgoingMessage.prototype.setHeader : res.setHeader
+  // 设置响应头 Set-Cookie
   setHeader.call(res, 'Set-Cookie', headers)
   return this
 };
 
+// Cookie 对象
 function Cookie(name, value, attrs) {
   if (!fieldContentRegExp.test(name)) {
     throw new TypeError('argument name is invalid');
@@ -125,11 +138,13 @@ function Cookie(name, value, attrs) {
     throw new TypeError('argument value is invalid');
   }
 
+  // 如果没有值，则将时间设置为过期
   value || (this.expires = new Date(0))
 
   this.name = name
   this.value = value || ""
 
+  // 拷贝选项中的属性和值
   for (var name in attrs) {
     this[name] = attrs[name]
   }
@@ -155,10 +170,12 @@ Cookie.prototype.sameSite = false;
 Cookie.prototype.secure = false;
 Cookie.prototype.overwrite = false;
 
+// 返回字符串格式
 Cookie.prototype.toString = function() {
   return this.name + "=" + this.value
 };
 
+// 把属性拼接成字符串格式
 Cookie.prototype.toHeader = function() {
   var header = this.toString()
 
@@ -174,7 +191,7 @@ Cookie.prototype.toHeader = function() {
   return header
 };
 
-// back-compat so maxage mirrors maxAge
+// back-compat so maxage mirrors maxAge 向后兼容
 Object.defineProperty(Cookie.prototype, 'maxage', {
   configurable: true,
   enumerable: true,
@@ -183,6 +200,7 @@ Object.defineProperty(Cookie.prototype, 'maxage', {
 });
 deprecate.property(Cookie.prototype, 'maxage', '"maxage"; use "maxAge" instead')
 
+// 获取 key 正则表达式，并缓存
 function getPattern(name) {
   if (cache[name]) return cache[name]
 
@@ -193,7 +211,9 @@ function getPattern(name) {
   )
 }
 
+// 将 cookie 添加到 headers
 function pushCookie(headers, cookie) {
+  // 是否重写
   if (cookie.overwrite) {
     for (var i = headers.length - 1; i >= 0; i--) {
       if (headers[i].indexOf(cookie.name + '=') === 0) {
@@ -205,6 +225,7 @@ function pushCookie(headers, cookie) {
   headers.push(cookie.toHeader())
 }
 
+// 用于 connect 和 express
 Cookies.connect = Cookies.express = function(keys) {
   return function(req, res, next) {
     req.cookies = res.cookies = new Cookies(req, res, {
